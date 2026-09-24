@@ -1,63 +1,48 @@
 import streamlit as st
 from PIL import Image
-import io
-import os
-from datetime import datetime
+from pyzbar.pyzbar import decode
 
-st.set_page_config(
-    page_title="Contador de Productos",
-    page_icon="📦",
-    layout="centered"
-)
-
+st.set_page_config(page_title="Stock Fotos", page_icon="📦")
 st.title("📦 Contador de Productos")
-st.write("Toma una foto de tus productos y registra la cantidad.")
 
-if "total" not in st.session_state:
-    st.session_state.total = 0
+if "productos" not in st.session_state:
+    st.session_state.productos = {}
 
-foto = st.camera_input("📷 Tomar fotografía")
-
-if foto is not None:
-    imagen = Image.open(foto)
-
-    st.image(
-        imagen,
-        caption="Fotografía tomada",
-        use_container_width=True
-    )
-
-    st.subheader("Cantidad de productos")
-
-    cantidad = st.number_input(
-        "Ingresa la cantidad que aparece en la fotografía:",
-        min_value=0,
-        step=1,
-        value=0
-    )
-
-    if st.button("➕ Agregar al inventario"):
-        st.session_state.total += cantidad
-        st.success(
-            f"Se agregaron {cantidad} productos correctamente."
-        )
-
+st.subheader("1) Carga tu base")
+c1,c2,c3 = st.columns(3)
+with c1: cod = st.text_input("Codigo")
+with c2: nom = st.text_input("Nombre")
+with c3: pre = st.number_input("Precio", min_value=0)
+if st.button("Guardar"):
+    if cod and nom and pre>0:
+        st.session_state.productos[cod]={"nombre":nom,"precio":pre}
+        st.success(f"Guardado {nom}")
+st.write(st.session_state.productos)
 st.divider()
 
-st.subheader("📊 Inventario")
-
-st.metric(
-    label="Total de productos",
-    value=st.session_state.total
-)
-
-if st.button("🗑️ Reiniciar contador"):
-    st.session_state.total = 0
-    st.rerun()
-
-st.divider()
-
-st.caption(
-    f"Última actualización: "
-    f"{datetime.now().strftime('%d/%m/%Y %H:%M')}"
-)
+st.subheader("2) Saca foto a TODOS los codigos juntos")
+foto = st.camera_input("Tomar fotografia")
+if foto:
+    img = Image.open(foto)
+    codigos = decode(img)
+    if not codigos:
+        st.error("No detecte nada, acerca mas")
+    else:
+        conteo={}
+        for o in codigos:
+            co=o.data.decode('utf-8')
+            conteo[co]=conteo.get(co,0)+1
+        total=0
+        cant_total=0
+        st.subheader("Resultado")
+        for co,cant in conteo.items():
+            p=st.session_state.productos.get(co)
+            if p:
+                sub=p["precio"]*cant
+                total+=sub
+                cant_total+=cant
+                st.write(f"{cant} x {p['nombre']} = ${sub:,}")
+            else:
+                st.warning(f"{cant} x NO REGISTRADO: {co}")
+        st.metric("TOTAL UNIDADES", cant_total)
+        st.metric("TOTAL PLATA", f"${total:,}")
